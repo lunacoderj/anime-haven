@@ -1,5 +1,16 @@
-import React, { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+  type User as FirebaseUser,
+} from "firebase/auth";
+import { auth, googleProvider } from "@/config/firebase";
 import type { User } from "@/types";
+import axios from "axios";
 
 interface AuthContextType {
   user: User | null;
@@ -14,35 +25,67 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const mockUser: User = {
-  uid: "123",
-  email: "test@test.com",
-  displayName: "TestUser",
-  photoURL: "",
-  isAdmin: false,
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
+const ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || "admin@animeworld.com").split(",").map((e: string) => e.trim().toLowerCase());
+
+const firebaseToUser = (u: FirebaseUser): User => ({
+  uid: u.uid,
+  email: u.email || "",
+  displayName: u.displayName || "",
+  photoURL: u.photoURL || "",
+  isAdmin: ADMIN_EMAILS.includes((u.email || "").toLowerCase()),
+});
+
+const saveUserToBackend = async (u: FirebaseUser, extra?: Record<string, unknown>) => {
+  try {
+    await axios.post(`${API}/api/users`, {
+      uid: u.uid,
+      email: u.email,
+      displayName: u.displayName,
+      photoURL: u.photoURL,
+      googleAuth: u.providerData.some(p => p.providerId === "google.com"),
+      phoneAuth: u.providerData.some(p => p.providerId === "phone"),
+      ...extra,
+    });
+  } catch {
+    // Backend may not be running — don't block auth
+  }
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const login = useCallback(async (_email: string, _password: string) => {
-    await new Promise(r => setTimeout(r, 500));
-    setUser(mockUser);
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (fbUser) => {
+      setUser(fbUser ? firebaseToUser(fbUser) : null);
+      setLoading(false);
+    });
+    return unsub;
   }, []);
 
-  const signup = useCallback(async (_email: string, _password: string, userData: Partial<User>) => {
-    await new Promise(r => setTimeout(r, 500));
-    setUser({ ...mockUser, ...userData });
+  const login = useCallback(async (email: string, password: string) => {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    await saveUserToBackend(cred.user);
+  }, []);
+
+  const signup = useCallback(async (email: string, password: string, userData: Partial<User>) => {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    if (userData.displayName) {
+      await updateProfile(cred.user, { displayName: userData.displayName });
+    }
+    await saveUserToBackend(cred.user, userData as Record<string, unknown>);
+    // Re-read user after profile update
+    setUser(firebaseToUser(cred.user));
   }, []);
 
   const loginWithGoogle = useCallback(async () => {
-    await new Promise(r => setTimeout(r, 500));
-    setUser(mockUser);
+    const cred = await signInWithPopup(auth, googleProvider);
+    await saveUserToBackend(cred.user);
   }, []);
 
   const logout = useCallback(async () => {
-    setUser(null);
+    await signOut(auth);
   }, []);
 
   return (

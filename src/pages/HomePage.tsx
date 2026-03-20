@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import HeroCarousel from "@/components/HeroCarousel";
@@ -39,10 +38,11 @@ const HomePage = () => {
 
   useEffect(() => {
     Promise.all([getTrendingAnime(), getTrendingManga(), getRecentAnime(), getRecentManga()])
-      .then(([ta, tm, ra, rm]) => { setTrendingAnime(ta); setTrendingManga(tm); setRecentAnime(ra); setRecentManga(rm); setLoading(false); });
+      .then(([ta, tm, ra, rm]) => { setTrendingAnime(ta); setTrendingManga(tm); setRecentAnime(ra); setRecentManga(rm); })
+      .finally(() => setLoading(false));
   }, []);
 
-  const skeletons = Array.from({ length: 7 }, (_, i) => <SkeletonCard key={i} />);
+  const skeletons = Array.from({ length: 8 }, (_, i) => <SkeletonCard key={i} />);
 
   return (
     <div className="min-h-screen bg-background">
@@ -51,7 +51,7 @@ const HomePage = () => {
         {loading ? (
           <div className="h-[70vh] animate-pulse bg-muted" />
         ) : (
-          <HeroCarousel items={trendingAnime} />
+          <HeroCarousel items={trendingAnime.slice(0, 10)} />
         )}
 
         <ScrollRow title="🔥 Trending Anime">
