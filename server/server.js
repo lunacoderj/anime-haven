@@ -81,11 +81,10 @@ app.use(helmet());
 app.use(cors({
   origin: function(origin, callback) {
     const allowedOrigins = [
-      "http://localhost:5173",
-      "http://localhost:8080", 
+      process.env.FRONTEND_URL,
       "http://localhost:8081",
-      "http://localhost:3000",
-      process.env.FRONTEND_URL
+      "http://localhost:5173",
+      "https://anime-haven.vercel.app"
     ];
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
