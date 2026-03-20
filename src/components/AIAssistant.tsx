@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, Sparkles } from "lucide-react";
 
 const AIAssistant = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
-  const [messages, setMessages] = useState([
-    { role: "ai" as const, text: "Hi! I'm your AI anime assistant. Ask me for recommendations, character info, or anything anime-related!" },
+  const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([
+    { role: "ai", text: "Hi! I'm your AI anime assistant. Ask me for recommendations, character info, or anything anime-related!" },
   ]);
   const [input, setInput] = useState("");
 
