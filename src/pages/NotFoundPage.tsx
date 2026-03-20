@@ -1,13 +1,14 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Home, LogIn } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const NotFoundPage = () => {
   const nav = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
-      {/* Floating shapes */}
       {[1, 2, 3, 4, 5, 6].map(i => (
         <motion.div
           key={i}
@@ -23,12 +24,14 @@ const NotFoundPage = () => {
         <p className="mt-4 text-xl font-medium text-foreground">Page Not Found</p>
         <p className="mt-2 text-sm text-muted-foreground">The page you're looking for doesn't exist or has been moved.</p>
         <div className="mt-8 flex justify-center gap-4">
-          <button onClick={() => nav("/home")} className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 font-semibold text-primary-foreground hover:bg-primary/80">
+          <button onClick={() => nav(isAuthenticated ? "/home" : "/")} className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 font-semibold text-primary-foreground hover:bg-primary/80">
             <Home className="h-5 w-5" /> Go Home
           </button>
-          <button onClick={() => nav("/auth")} className="flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2.5 font-semibold text-foreground hover:bg-muted">
-            <LogIn className="h-5 w-5" /> Back to Login
-          </button>
+          {!isAuthenticated && (
+            <button onClick={() => nav("/auth")} className="flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2.5 font-semibold text-foreground hover:bg-muted">
+              <LogIn className="h-5 w-5" /> Back to Login
+            </button>
+          )}
         </div>
       </motion.div>
     </div>

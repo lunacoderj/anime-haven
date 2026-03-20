@@ -1,34 +1,56 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const genres = ["Action", "Adventure", "Comedy", "Drama", "Fantasy", "Horror", "Mystery", "Romance", "Sci-Fi", "Slice of Life", "Sports", "Supernatural", "Thriller", "Isekai", "Mecha", "Psychological", "School", "Shounen"];
-const statuses = ["Releasing", "Finished", "Not Yet Released", "Cancelled"];
-const types = ["Anime", "Manga", "Manhwa", "Manhua"];
+const statuses = ["RELEASING", "FINISHED", "NOT_YET_RELEASED", "CANCELLED"];
+const statusLabels: Record<string, string> = { RELEASING: "Releasing", FINISHED: "Finished", NOT_YET_RELEASED: "Not Yet Released", CANCELLED: "Cancelled" };
+const types = ["Anime", "Manga"];
 const sorts = ["Trending", "Popular", "Highest Rated", "Newest", "Oldest"];
-const years = ["2024", "2023", "2022", "2021", "2020", "2019", "2018", "Older"];
+const years = ["2025", "2024", "2023", "2022", "2021", "2020", "2019", "2018"];
 
 interface Props { onClose: () => void }
 
 const GenreFilter = ({ onClose }: Props) => {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const nav = useNavigate();
+  const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  const [selectedType, setSelectedType] = useState<string>("");
+  const [selectedSort, setSelectedSort] = useState<string>("");
+  const [selectedYear, setSelectedYear] = useState<string>("");
 
-  const toggle = (v: string) => {
-    setSelected(s => {
+  const toggleGenre = (g: string) => {
+    setSelectedGenres(s => {
       const n = new Set(s);
-      n.has(v) ? n.delete(v) : n.add(v);
+      n.has(g) ? n.delete(g) : n.add(g);
       return n;
     });
   };
 
-  const Chips = ({ items }: { items: string[] }) => (
-    <div className="flex flex-wrap gap-2">
-      {items.map(i => (
-        <button key={i} onClick={() => toggle(i)} className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${selected.has(i) ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-          {i}
-        </button>
-      ))}
-    </div>
+  const apply = () => {
+    const params = new URLSearchParams();
+    if (selectedGenres.size) params.set("genres", Array.from(selectedGenres).join(","));
+    if (selectedStatus) params.set("status", selectedStatus);
+    if (selectedType) params.set("type", selectedType);
+    if (selectedSort) params.set("sort", selectedSort);
+    if (selectedYear) params.set("year", selectedYear);
+    nav(`/search?${params.toString()}`);
+    onClose();
+  };
+
+  const clear = () => {
+    setSelectedGenres(new Set());
+    setSelectedStatus("");
+    setSelectedType("");
+    setSelectedSort("");
+    setSelectedYear("");
+  };
+
+  const Chip = ({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) => (
+    <button onClick={onClick} className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+      {label}
+    </button>
   );
 
   return (
@@ -38,16 +60,41 @@ const GenreFilter = ({ onClose }: Props) => {
           <h3 className="font-semibold text-foreground">Filters</h3>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
-        <div><p className="mb-2 text-xs font-medium text-muted-foreground">Genres</p><Chips items={genres} /></div>
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Genres</p>
+          <div className="flex flex-wrap gap-2">
+            {genres.map(g => <Chip key={g} label={g} selected={selectedGenres.has(g)} onClick={() => toggleGenre(g)} />)}
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <div><p className="mb-2 text-xs font-medium text-muted-foreground">Status</p><Chips items={statuses} /></div>
-          <div><p className="mb-2 text-xs font-medium text-muted-foreground">Type</p><Chips items={types} /></div>
-          <div><p className="mb-2 text-xs font-medium text-muted-foreground">Sort</p><Chips items={sorts} /></div>
-          <div><p className="mb-2 text-xs font-medium text-muted-foreground">Year</p><Chips items={years} /></div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Status</p>
+            <div className="flex flex-wrap gap-2">
+              {statuses.map(s => <Chip key={s} label={statusLabels[s]} selected={selectedStatus === s} onClick={() => setSelectedStatus(selectedStatus === s ? "" : s)} />)}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Type</p>
+            <div className="flex flex-wrap gap-2">
+              {types.map(t => <Chip key={t} label={t} selected={selectedType === t} onClick={() => setSelectedType(selectedType === t ? "" : t)} />)}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Sort</p>
+            <div className="flex flex-wrap gap-2">
+              {sorts.map(s => <Chip key={s} label={s} selected={selectedSort === s} onClick={() => setSelectedSort(selectedSort === s ? "" : s)} />)}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Year</p>
+            <div className="flex flex-wrap gap-2">
+              {years.map(y => <Chip key={y} label={y} selected={selectedYear === y} onClick={() => setSelectedYear(selectedYear === y ? "" : y)} />)}
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={onClose} className="rounded-lg bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/80">Apply Filters</button>
-          <button onClick={() => setSelected(new Set())} className="text-sm text-muted-foreground hover:text-foreground">Clear All</button>
+          <button onClick={apply} className="rounded-lg bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/80">Apply Filters</button>
+          <button onClick={clear} className="text-sm text-muted-foreground hover:text-foreground">Clear All</button>
         </div>
       </div>
     </motion.div>
