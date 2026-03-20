@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Camera, Upload, Search } from "lucide-react";
+import { X, Camera, Upload, Search, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const ImageAnalyzer = () => {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState<{ title: string; confidence: number } | null>(null);
+  const [result, setResult] = useState<{ title: string; confidence: number; id: number } | null>(null);
+  const navigate = useNavigate();
 
   const handleFile = (f: File) => {
     const r = new FileReader();
@@ -17,8 +19,17 @@ const ImageAnalyzer = () => {
 
   const analyze = () => {
     setAnalyzing(true);
+    // Mock mapping for demo purposes
+    const mockDb: Record<string, number> = {
+        "Demon Slayer": 101922,
+        "Attack on Titan": 16498,
+        "One Piece": 21,
+        "Jujutsu Kaisen": 113415
+    };
+
     setTimeout(() => {
-      setResult({ title: "Demon Slayer", confidence: 92 });
+      const title = "Demon Slayer";
+      setResult({ title, confidence: 92, id: mockDb[title] || 101922 });
       setAnalyzing(false);
     }, 2000);
   };
@@ -68,7 +79,12 @@ const ImageAnalyzer = () => {
                 <div className="rounded-lg border border-border bg-muted/30 p-4">
                   <p className="text-sm font-medium text-foreground">Match: {result.title}</p>
                   <p className="text-xs text-muted-foreground">Confidence: {result.confidence}%</p>
-                  <button className="mt-2 rounded-md bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80">View Details</button>
+                  <button 
+                    onClick={() => { navigate(`/details/${result.id}`); setOpen(false); }}
+                    className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md bg-primary/20 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/30 transition-colors"
+                  >
+                    <ExternalLink className="h-3 w-3" /> View Details
+                  </button>
                 </div>
               )}
             </motion.div>

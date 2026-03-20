@@ -1,15 +1,18 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Search, SlidersHorizontal, Camera, Sparkles, Bell, Menu, X, LogOut, User, Loader2 } from "lucide-react";
+import { Search, SlidersHorizontal, Camera, Sparkles, Bell, Menu, X, LogOut, User, Loader2, Check, MessageSquare, ListTodo } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { searchAnime } from "@/utils/anilist";
 import GenreFilter from "./GenreFilter";
+import { useNotifications } from "@/hooks/useNotifications";
 import type { Anime } from "@/types";
 
 const Navbar = () => {
   const { user, logout } = useAuth();
   const nav = useNavigate();
+  const { notifications, unreadCount, markAllRead } = useNotifications(user?.uid || null);
+
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState<Anime[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -17,8 +20,11 @@ const Navbar = () => {
   const [showFilter, setShowFilter] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
+  
   const dropRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -41,8 +47,9 @@ const Navbar = () => {
     const handler = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowResults(false);
       if (dropRef.current && !dropRef.current.contains(e.target as Node)) setShowDropdown(false);
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotifications(false);
     };
-    const keyHandler = (e: KeyboardEvent) => { if (e.key === "Escape") { setShowResults(false); setShowDropdown(false); } };
+    const keyHandler = (e: KeyboardEvent) => { if (e.key === "Escape") { setShowResults(false); setShowDropdown(false); setShowNotifications(false); } };
     document.addEventListener("mousedown", handler);
     document.addEventListener("keydown", keyHandler);
     return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("keydown", keyHandler); };
@@ -113,23 +120,72 @@ const Navbar = () => {
           </div>
 
           <div className="hidden items-center gap-3 md:flex">
-            <button onClick={() => setShowMenu(m => !m)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <button className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
               <Sparkles className="h-5 w-5" />
             </button>
-            <button className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent-red" />
+            
+            <button 
+              onClick={() => nav("/chat")}
+              className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title="Community Chat"
+            >
+              <MessageSquare className="h-5 w-5" />
+              {user && <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-card" />}
             </button>
+
+            <div className="relative" ref={notifRef}>
+                <button onClick={() => setShowNotifications(!showNotifications)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent-red" />}
+                </button>
+                <AnimatePresence>
+                    {showNotifications && (
+                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="absolute right-0 top-12 w-80 rounded-lg border border-border bg-card shadow-xl overflow-hidden z-50">
+                        <div className="flex items-center justify-between border-b border-border p-3 bg-muted/30">
+                            <h3 className="font-semibold text-sm">Notifications</h3>
+                            {unreadCount > 0 && (
+                                <button onClick={markAllRead} className="text-xs text-primary hover:underline flex items-center gap-1">
+                                    <Check className="h-3 w-3" /> Mark all read
+                                </button>
+                            )}
+                        </div>
+                        <div className="max-h-80 overflow-y-auto">
+                            {notifications.length === 0 ? (
+                                <p className="p-6 text-center text-sm text-muted-foreground">No new notifications</p>
+                            ) : notifications.map(n => (
+                                <div 
+                                    key={n._id} 
+                                    onClick={() => { if (n.link) nav(n.link); setShowNotifications(false); }}
+                                    className={`p-3 text-sm border-b border-border hover:bg-muted/50 transition-colors cursor-pointer ${!n.isRead ? 'border-l-2 border-l-primary bg-primary/5' : ''}`}
+                                >
+                                    <p className="text-foreground">{n.message}</p>
+                                    <p className="text-[10px] text-muted-foreground mt-1">{new Date(n.createdAt).toLocaleString()}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+            
             <div className="relative" ref={dropRef}>
               <button onClick={() => setShowDropdown(d => !d)} className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
                 {user?.displayName?.[0]?.toUpperCase() || "U"}
               </button>
               <AnimatePresence>
                 {showDropdown && (
-                  <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="absolute right-0 top-12 w-48 rounded-lg border border-border bg-card p-1 shadow-xl">
+                  <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="absolute right-0 top-12 w-48 rounded-lg border border-border bg-card p-1 shadow-xl z-50">
                     <button onClick={() => { nav("/profile"); setShowDropdown(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted">
                       <User className="h-4 w-4" /> Profile
                     </button>
+                    <button onClick={() => { nav("/release-notes"); setShowDropdown(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted">
+                      <ListTodo className="h-4 w-4" /> Release Notes
+                    </button>
+                    {user?.isAdmin && (
+                        <button onClick={() => { nav("/admin"); setShowDropdown(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted">
+                        <SlidersHorizontal className="h-4 w-4" /> Admin
+                        </button>
+                    )}
                     <div className="my-1 border-t border-border" />
                     <button onClick={() => { logout(); nav("/auth"); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-accent-red hover:bg-muted">
                       <LogOut className="h-4 w-4" /> Logout
@@ -148,15 +204,17 @@ const Navbar = () => {
         <AnimatePresence>
           {showMobileNav && (
             <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden border-t border-border md:hidden">
-              <div className="flex flex-col gap-2 p-4">
-                <form onSubmit={handleSearch} className="relative">
+              <div className="flex flex-col gap-2 p-4 bg-background">
+                <form onSubmit={handleSearch} className="relative mb-2">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input value={search} onChange={e => onSearchChange(e.target.value)} placeholder="Search anime..." className="h-10 w-full rounded-lg border border-border bg-muted/50 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none" />
                 </form>
                 <Link to="/home" onClick={() => setShowMobileNav(false)} className="rounded-md px-3 py-2 text-foreground hover:bg-muted">Home</Link>
                 <Link to="/chat" onClick={() => setShowMobileNav(false)} className="rounded-md px-3 py-2 text-foreground hover:bg-muted">Chat</Link>
                 <Link to="/profile" onClick={() => setShowMobileNav(false)} className="rounded-md px-3 py-2 text-foreground hover:bg-muted">Profile</Link>
-                <button onClick={() => { logout(); nav("/auth"); }} className="rounded-md px-3 py-2 text-left text-accent-red hover:bg-muted">Logout</button>
+                <Link to="/release-notes" onClick={() => setShowMobileNav(false)} className="rounded-md px-3 py-2 text-foreground hover:bg-muted">Release Notes</Link>
+                {user?.isAdmin && <Link to="/admin" onClick={() => setShowMobileNav(false)} className="rounded-md px-3 py-2 text-foreground hover:bg-muted">Admin</Link>}
+                <button onClick={() => { logout(); nav("/auth"); }} className="rounded-md px-3 py-2 text-left w-full text-accent-red hover:bg-muted">Logout</button>
               </div>
             </motion.div>
           )}

@@ -1,13 +1,31 @@
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import CommentSection from "@/components/CommentSection";
+import { useHistory } from "@/hooks/useHistory";
+import { useAuth } from "@/context/AuthContext";
+import { getMediaDetails } from "@/utils/anilist";
 
 const ReadPage = () => {
   const { id, chapter } = useParams();
   const nav = useNavigate();
+  const { user } = useAuth();
+  const { addToHistory } = useHistory(user?.uid || null);
+
   const ch = Number(chapter) || 1;
-  const totalCh = 100;
+  const [totalCh, setTotalCh] = useState(100);
+
+  useEffect(() => {
+    getMediaDetails(Number(id)).then(data => {
+      if (data) {
+        if (data.chapters) setTotalCh(data.chapters);
+        const title = data.title?.english || data.title?.romaji || "";
+        const coverImage = data.coverImage?.extraLarge || data.coverImage?.large || "";
+        addToHistory({ mediaId: Number(id), mediaType: "MANGA", title, coverImage, episodeOrChapter: ch });
+      }
+    });
+  }, [id, ch]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -36,7 +54,7 @@ const ReadPage = () => {
         <div className="mb-8">
           <h3 className="mb-3 font-semibold text-foreground">Chapters</h3>
           <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 md:grid-cols-10">
-            {Array.from({ length: 20 }, (_, i) => (
+            {Array.from({ length: Math.min(20, totalCh) }, (_, i) => (
               <button key={i} onClick={() => nav(`/read/${id}/${i + 1}`)} className={`rounded-lg border py-2 text-center text-sm font-medium transition-colors ${i + 1 === ch ? "border-secondary bg-secondary text-secondary-foreground" : "border-border bg-card text-foreground hover:bg-muted"}`}>
                 {i + 1}
               </button>
@@ -44,7 +62,7 @@ const ReadPage = () => {
           </div>
         </div>
 
-        <CommentSection />
+        <CommentSection mediaId={Number(id)} mediaType="MANGA" />
       </div>
     </div>
   );

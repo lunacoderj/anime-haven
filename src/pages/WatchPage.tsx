@@ -1,14 +1,31 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import CommentSection from "@/components/CommentSection";
+import { useHistory } from "@/hooks/useHistory";
+import { useAuth } from "@/context/AuthContext";
+import { getMediaDetails } from "@/utils/anilist";
 
 const WatchPage = () => {
   const { id, episode } = useParams();
   const nav = useNavigate();
+  const { user } = useAuth();
+  const { addToHistory } = useHistory(user?.uid || null);
+
   const ep = Number(episode) || 1;
-  const totalEps = 24;
+  const [totalEps, setTotalEps] = useState(24);
+
+  useEffect(() => {
+    getMediaDetails(Number(id)).then(data => {
+      if (data) {
+        if (data.episodes) setTotalEps(data.episodes);
+        const title = data.title?.english || data.title?.romaji || "";
+        const coverImage = data.coverImage?.extraLarge || data.coverImage?.large || "";
+        addToHistory({ mediaId: Number(id), mediaType: "ANIME", title, coverImage, episodeOrChapter: ep });
+      }
+    });
+  }, [id, ep]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -48,7 +65,7 @@ const WatchPage = () => {
           </div>
         </div>
 
-        <CommentSection />
+        <CommentSection mediaId={Number(id)} mediaType="ANIME" />
       </div>
     </div>
   );

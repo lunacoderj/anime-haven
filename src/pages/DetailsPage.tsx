@@ -1,20 +1,27 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Play, BookOpen, Star, Calendar, Clock, Tv, Film, RefreshCw } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Play, BookOpen, Star, Calendar, Clock, Tv, Film, RefreshCw, BookmarkPlus, Bookmark as BookmarkIcon, ChevronDown } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import AnimeCard from "@/components/AnimeCard";
-import SkeletonCard from "@/components/SkeletonCard";
+import CommentSection from "@/components/CommentSection";
 import { getMediaDetails } from "@/utils/anilist";
-import type { Anime } from "@/types";
+import { useAuth } from "@/context/AuthContext";
+import { useBookmarks } from "@/hooks/useBookmarks";
+import { useHistory } from "@/hooks/useHistory";
 
 const DetailsPage = () => {
   const { id } = useParams();
   const nav = useNavigate();
+  const { user } = useAuth();
+  const { addBookmark, isBookmarked, getBookmarkStatus } = useBookmarks(user?.uid || null);
+  const { addToHistory } = useHistory(user?.uid || null);
+
   const [media, setMedia] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const fetchData = () => {
     setLoading(true);
@@ -24,9 +31,10 @@ const DetailsPage = () => {
       .catch(() => { setError(true); setLoading(false); });
   };
 
-  useEffect(() => { fetchData(); }, [id]);
+  useEffect(() => { fetchData(); setShowDropdown(false); setActiveTab("overview"); }, [id]);
 
   const tabs = ["Overview", "Characters", "Staff", "Recommendations"];
+  const statusOptions = ["watching", "completed", "plan_to_watch", "dropped", "on_hold"];
 
   if (loading) return (
     <div className="min-h-screen bg-background">
@@ -55,9 +63,33 @@ const DetailsPage = () => {
   const staff = media.staff?.edges ?? [];
   const recs = (media.recommendations?.edges ?? []).map((e: any) => e.node?.mediaRecommendation).filter(Boolean);
   const mainStudios = (media.studios?.edges ?? []).filter((e: any) => e.isMain).map((e: any) => e.node);
+  const coverImage = media.coverImage?.extraLarge || media.coverImage?.large;
+
+  const handleBookmark = (status: any) => {
+    if (!user) return;
+    addBookmark({
+        mediaId: Number(id),
+        mediaType: isAnime ? "ANIME" : "MANGA",
+        title,
+        coverImage,
+        status,
+        progress: 0
+    });
+    addToHistory({
+        mediaId: Number(id),
+        mediaType: isAnime ? "ANIME" : "MANGA",
+        title,
+        coverImage,
+        episodeOrChapter: 1
+    });
+    setShowDropdown(false);
+  };
+
+  const bookmarked = isBookmarked(Number(id));
+  const currentStatus = getBookmarkStatus(Number(id));
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-12">
       <Navbar />
       <div className="pt-16">
         <div className="relative h-80 overflow-hidden">
@@ -73,7 +105,7 @@ const DetailsPage = () => {
           <div className="-mt-32 relative z-10 flex flex-col gap-6 md:flex-row">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex-shrink-0">
               <div className="relative w-48 overflow-hidden rounded-xl shadow-2xl">
-                <img src={media.coverImage?.extraLarge || media.coverImage?.large} alt={title} className="w-full" />
+                <img src={coverImage} alt={title} className="w-full" />
                 <span className="absolute left-2 top-2 rounded bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">{media.format}</span>
               </div>
             </motion.div>
@@ -94,12 +126,47 @@ const DetailsPage = () => {
                 {(media.genres ?? []).map((g: string) => <span key={g} className="rounded-full bg-muted px-3 py-1 text-xs text-foreground">{g}</span>)}
               </div>
 
-              <button
-                onClick={() => nav(isAnime ? `/watch/${media.id}/1` : `/read/${media.id}/1`)}
-                className="mt-4 flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 font-semibold text-primary-foreground hover:bg-primary/80"
-              >
-                {isAnime ? <><Play className="h-5 w-5" /> Watch Now</> : <><BookOpen className="h-5 w-5" /> Read Now</>}
-              </button>
+              <div className="mt-4 flex items-center gap-3">
+                <button
+                    onClick={() => nav(isAnime ? `/watch/${media.id}/1` : `/read/${media.id}/1`)}
+                    className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 font-semibold text-primary-foreground hover:bg-primary/80"
+                >
+                    {isAnime ? <><Play className="h-5 w-5" /> Watch Now</> : <><BookOpen className="h-5 w-5" /> Read Now</>}
+                </button>
+
+                {user && (
+                    <div className="relative">
+                        <button 
+                            onClick={() => setShowDropdown(!showDropdown)}
+                            className={`flex items-center gap-2 rounded-lg px-6 py-2.5 font-semibold transition-colors ${bookmarked ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-foreground hover:bg-muted'}`}
+                        >
+                            {bookmarked ? (
+                                <><BookmarkIcon className="h-5 w-5 fill-current" /> Bookmarked <ChevronDown className="h-4 w-4" /></>
+                            ) : (
+                                <><BookmarkPlus className="h-5 w-5" /> Add to List <ChevronDown className="h-4 w-4" /></>
+                            )}
+                        </button>
+
+                        <AnimatePresence>
+                            {showDropdown && (
+                                <motion.div 
+                                    initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                                    className="absolute left-0 top-full mt-2 w-48 rounded-lg border border-border bg-card shadow-xl z-50 overflow-hidden py-1"
+                                >
+                                    {statusOptions.map(s => (
+                                        <button 
+                                            key={s} onClick={() => handleBookmark(s)} 
+                                            className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted capitalize ${currentStatus === s ? 'text-primary font-bold' : 'text-foreground'}`}
+                                        >
+                                            {s.replace(/_/g, ' ')}
+                                        </button>
+                                    ))}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                )}
+              </div>
             </motion.div>
           </div>
 
@@ -189,6 +256,8 @@ const DetailsPage = () => {
                 ) : recs.map((r: any) => <AnimeCard key={r.id} anime={r} />)}
               </div>
             )}
+            
+            <CommentSection mediaId={Number(id)} mediaType={isAnime ? "ANIME" : "MANGA"} />
           </div>
         </div>
       </div>

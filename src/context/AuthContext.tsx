@@ -28,10 +28,11 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
 const ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || "admin@animeworld.com").split(",").map((e: string) => e.trim().toLowerCase());
 
-const firebaseToUser = (u: FirebaseUser): User => ({
+const firebaseToUser = (u: FirebaseUser, extra?: any): User => ({
   uid: u.uid,
   email: u.email || "",
   displayName: u.displayName || "",
+  username: extra?.username || u.displayName?.replace(/\s+/g, '').toLowerCase() || u.email?.split('@')[0],
   photoURL: u.photoURL || "",
   isAdmin: ADMIN_EMAILS.includes((u.email || "").toLowerCase()),
 });
@@ -57,8 +58,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (fbUser) => {
-      setUser(fbUser ? firebaseToUser(fbUser) : null);
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        try {
+          const res = await axios.get(`${API}/api/users/${fbUser.uid}`);
+          setUser(firebaseToUser(fbUser, res.data));
+        } catch {
+          setUser(firebaseToUser(fbUser));
+        }
+      } else {
+        setUser(null);
+      }
       setLoading(false);
     });
     return unsub;

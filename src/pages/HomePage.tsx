@@ -5,8 +5,6 @@ import HeroCarousel from "@/components/HeroCarousel";
 import AnimeCard from "@/components/AnimeCard";
 import MangaCard from "@/components/MangaCard";
 import SkeletonCard from "@/components/SkeletonCard";
-import AIAssistant from "@/components/AIAssistant";
-import ImageAnalyzer from "@/components/ImageAnalyzer";
 import { getTrendingAnime, getTrendingManga, getRecentAnime, getRecentManga } from "@/utils/anilist";
 import type { Anime, Manga } from "@/types";
 
@@ -34,7 +32,6 @@ const HomePage = () => {
   const [recentAnime, setRecentAnime] = useState<Anime[]>([]);
   const [recentManga, setRecentManga] = useState<Manga[]>([]);
   const [loading, setLoading] = useState(true);
-  const [aiOpen, setAiOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([getTrendingAnime(), getTrendingManga(), getRecentAnime(), getRecentManga()])
@@ -76,9 +73,6 @@ const HomePage = () => {
           </div>
         </section>
       </div>
-
-      <AIAssistant open={aiOpen} onClose={() => setAiOpen(false)} />
-      <ImageAnalyzer />
     </div>
   );
 };

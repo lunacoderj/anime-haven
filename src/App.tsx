@@ -14,7 +14,10 @@ import ChatPage from "@/pages/ChatPage";
 import ProfilePage from "@/pages/ProfilePage";
 import AdminPage from "@/pages/AdminPage";
 import SearchResultsPage from "@/pages/SearchResultsPage";
+import ReleaseNotesPage from "@/pages/ReleaseNotesPage";
 import NotFoundPage from "@/pages/NotFoundPage";
+import AIAssistant from "@/components/AIAssistant";
+import ImageAnalyzer from "@/components/ImageAnalyzer";
 
 const queryClient = new QueryClient();
 
@@ -35,8 +38,13 @@ const App = () => (
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
             <Route path="/search" element={<ProtectedRoute><SearchResultsPage /></ProtectedRoute>} />
+            <Route path="/release-notes" element={<ProtectedRoute><ReleaseNotesPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
+          <ProtectedRoute>
+            <AIAssistant />
+            <ImageAnalyzer />
+          </ProtectedRoute>
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
