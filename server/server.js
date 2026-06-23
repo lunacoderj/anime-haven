@@ -9,6 +9,15 @@ import rateLimit from "express-rate-limit";
 import admin from "firebase-admin";
 import { v2 as cloudinary } from "cloudinary";
 import multer from "multer";
+import { ANIME, META } from "@consumet/extensions";
+
+// Initialize providers
+const hianime = new ANIME.Hianime();
+const animepahe = new ANIME.AnimePahe();
+const kickass = new ANIME.KickAssAnime();
+const animekai = new ANIME.AnimeKai();
+const animesama = new ANIME.AnimeSama();
+const anilist = new META.Anilist(hianime); // Explicitly pass hianime to avoid missing default provider issues
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -836,6 +845,167 @@ app.post("/api/release-notes/:id/emoji", async (req, res) => {
   }
 });
 
+// 1. Get Episode List
+app.get("/api/anime/:id/episodes", async (req, res) => {
+  const { id } = req.params;
+  console.log(`Fetching episodes for ID: ${id}`);
+  try {
+    let episodes = [];
+    let streamingId = id;
+
+    // If ID is numeric, it's likely an Anilist ID from our search
+    if (/^\d+$/.test(id)) {
+      console.log(`Numeric ID detected (${id}), attempting to map to streaming provider...`);
+      try {
+        // Direct GraphQL fetch to Anilist to get the title
+        const anilistResponse = await fetch('https://graphql.anilist.co', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            query: `query ($id: Int) { Media (id: $id, type: ANIME) { title { english romaji native } } }`,
+            variables: { id: parseInt(id) }
+          })
+        });
+        const anilistData = await anilistResponse.json();
+        if (!anilistData?.data?.Media) {
+          throw new Error("Anime not found on Anilist");
+        }
+        const media = anilistData.data.Media;
+        const title = media.title.english || media.title.romaji || media.title.native;
+        console.log(`Mapped ID ${id} to title: ${title}`);
+
+        // Search for this title on multiple providers
+        const searchResults = await hianime.search(title).catch(() => ({ results: [] }));
+        if (searchResults.results && searchResults.results.length > 0) {
+          streamingId = searchResults.results[0].id;
+          console.log(`Using streaming ID: ${streamingId} (from Hianime)`);
+        } else {
+          // Try AnimePahe as fallback search
+          const paheSearch = await animepahe.search(title).catch(() => ({ results: [] }));
+          if (paheSearch.results && paheSearch.results.length > 0) {
+            streamingId = paheSearch.results[0].id;
+            console.log(`Using streaming ID: ${streamingId} (from AnimePahe)`);
+          } else {
+             // Try AnimeKai
+             const kaiSearch = await animekai.search(title).catch(() => ({ results: [] }));
+             if (kaiSearch.results && kaiSearch.results.length > 0) {
+               streamingId = kaiSearch.results[0].id;
+               console.log(`Using streaming ID: ${streamingId} (from AnimeKai)`);
+             }
+          }
+        }
+      } catch (err) {
+        console.warn("Mapping failed, trying to use numeric ID directly:", err.message);
+      }
+    }
+
+    // Now fetch episodes using the (potentially mapped) streamingId
+    try {
+      const info = await hianime.fetchAnimeInfo(streamingId);
+      if (info && info.episodes && info.episodes.length > 0) {
+        episodes = info.episodes;
+      }
+    } catch (e) {
+      console.warn("Hianime episodes fetch failed:", e.message);
+    }
+
+    if (episodes.length === 0) {
+      try {
+        const info = await animepahe.fetchAnimeInfo(streamingId);
+        if (info && info.episodes && info.episodes.length > 0) {
+          episodes = info.episodes;
+        }
+      } catch (e) {
+        console.warn("AnimePahe episodes fetch failed:", e.message);
+      }
+    }
+
+    if (episodes.length === 0) {
+      return res.status(404).json({ error: "Episodes not found. The provider might be down or the anime is not available for streaming." });
+    }
+    
+    res.json(episodes);
+  } catch (error) {
+    console.error("Fetch Episodes Error:", error.message);
+    res.status(500).json({ error: "Failed to fetch episodes" });
+  }
+});
+
+// 2. Get Streaming Links for a specific Episode
+app.get("/api/anime/watch/:episodeId", async (req, res) => {
+  try {
+    const { episodeId } = req.params;
+    let sources;
+    
+    // Try to fetch from different providers based on episodeId format or fallback
+    const providers = [hianime, animepahe, animekai, animesama, kickass];
+    let success = false;
+    let lastError = null;
+
+    for (const provider of providers) {
+      try {
+        console.log(`Attempting to fetch streams from ${provider.name} for ${episodeId}`);
+        sources = await provider.fetchEpisodeSources(episodeId);
+        if (sources && (sources.sources?.length > 0 || sources.length > 0)) {
+          success = true;
+          break;
+        }
+      } catch (err) {
+        console.warn(`${provider.name} stream fetch failed:`, err.message);
+        lastError = err;
+      }
+    }
+    
+    if (!success) {
+      throw lastError || new Error("All providers failed to fetch stream links");
+    }
+    
+    res.json(sources);
+  } catch (error) {
+    console.error("Fetch Stream Links Error:", error.message);
+    res.status(500).json({ error: "Failed to fetch stream links" });
+  }
+});
+
+// 3. Search Anime
+app.get("/api/anime/search/:query", async (req, res) => {
+  const { query } = req.params;
+  console.log(`Searching for anime: ${query}`);
+  
+  try {
+    // Use Anilist for search - it's the most stable and returns consistent metadata
+    let results = [];
+
+    try {
+      const anilistResults = await anilist.search(query);
+      if (anilistResults.results && anilistResults.results.length > 0) {
+        results = anilistResults.results;
+      }
+    } catch (err) {
+      console.warn("Anilist search failed, trying scrapers:", err.message);
+    }
+
+    // Fallback to scrapers if Anilist fails
+    if (results.length === 0) {
+      try {
+        const hianimeResults = await hianime.search(query);
+        results = hianimeResults.results || [];
+      } catch (err) {
+        console.warn("Hianime search failed:", err.message);
+      }
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ error: "No anime found" });
+    }
+    
+    res.json({ results });
+  } catch (error) {
+    console.error("Global Search Error:", error.message);
+    res.status(500).json({ error: "Search failed" });
+  }
+});
+
 // HEALTH CHECK
 
 app.get("/api/health", (req, res) => {
@@ -1018,6 +1188,6 @@ io.on("connection", (socket) => {
 
 // START SERVER
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+httpServer.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT} (0.0.0.0)`);
 });
